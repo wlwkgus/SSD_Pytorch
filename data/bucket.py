@@ -350,6 +350,7 @@ class BucketDataset(Dataset):
             areas.append(
                 anno
             )
+        areas = np.asarray(areas).reshape(-1, 5)
 
         if self.name != 'test':
             if self.transform is not None:
@@ -357,7 +358,7 @@ class BucketDataset(Dataset):
         else:
             if self.transform is not None:
                 img = self.transform(img)
-        return img, np.asarray(areas).reshape(-1, 5), info
+        return img, areas, info
 
 
 def detection_collate(batch):
