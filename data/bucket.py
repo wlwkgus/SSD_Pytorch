@@ -337,15 +337,19 @@ class BucketDataset(Dataset):
         height, width, _ = img.shape
         info = [width, height]
         for i, region in enumerate(region_dict['areas']):
-            areas.append(
-                np.concatenate(
-                    (
-                        region['coordinates'],
-                        np.zeros(1)
-                    )
+            anno = np.concatenate(
+                (
+                    region['coordinates'],
+                    np.zeros(1)
                 )
             )
-            areas[i][4] = region['label']
+            anno[4] = region['label']
+            anno[[0, 2]] *= width
+            anno[[1, 3]] *= height
+            anno = np.math.floor(anno)
+            areas.append(
+                anno
+            )
 
         if self.name != 'test':
             if self.transform is not None:
@@ -353,7 +357,7 @@ class BucketDataset(Dataset):
         else:
             if self.transform is not None:
                 img = self.transform(img)
-        return img, areas, info
+        return img, np.asarray(areas), info
 
 
 def detection_collate(batch):
