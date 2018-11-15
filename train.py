@@ -1,5 +1,8 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3,2,1,0"
+
+from data.bucket import BucketDataset
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,0"
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -229,6 +232,9 @@ def main():
     if cfg.DATASETS.DATA_TYPE == 'VOC':
         trainvalDataset = VOCDetection
         top_k = 200
+    elif cfg.DATASETS.DATA_TYPE == 'Bucket':
+        trainvalDataset = BucketDataset
+        top_k = 200
     else:
         trainvalDataset = COCODetection
         top_k = 300
@@ -289,7 +295,10 @@ def main():
     TrainTransform = preproc(size_cfg.IMG_WH, bgr_means, p)
     ValTransform = BaseTransform(size_cfg.IMG_WH, bgr_means, (2, 0, 1))
 
-    val_dataset = trainvalDataset(dataroot, valSet, ValTransform, dataset_name)
+    if cfg.DATASETS.DATA_TYPE == 'Bucket':
+        val_dataset = trainvalDataset(dataroot, valSet, ValTransform)
+    else:
+        val_dataset = trainvalDataset(dataroot, valSet, ValTransform)
     val_loader = data.DataLoader(
         val_dataset,
         batch_size,
@@ -298,8 +307,10 @@ def main():
         collate_fn=detection_collate)
 
     for epoch in range(start_epoch + 1, end_epoch + 1):
-        train_dataset = trainvalDataset(dataroot, trainSet, TrainTransform,
-                                        dataset_name)
+        if cfg.DATASETS.DATA_TYPE == 'Bucket':
+            train_dataset = trainvalDataset(dataroot, trainSet, TrainTransform)
+        else:
+            train_dataset = trainvalDataset(dataroot, trainSet, TrainTransform, dataset_name)
         epoch_size = len(train_dataset)
         train_loader = data.DataLoader(
             train_dataset,
