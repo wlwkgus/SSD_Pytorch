@@ -344,9 +344,9 @@ class BucketDataset(Dataset):
                 )
             )
             anno[4] = region['label']
-            anno[[0, 2]] *= width
-            anno[[1, 3]] *= height
-            anno = np.math.floor(anno)
+            anno[[0, 2]] *= width / 100
+            anno[[1, 3]] *= height / 100
+            anno = np.floor(anno)
             areas.append(
                 anno
             )
