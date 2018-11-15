@@ -57,8 +57,8 @@ SOLVER:
   START_EPOCH: 0
 
 DATASETS:
-  TRAIN_TYPE: ''
-  VAL_TYPE: ''
+  TRAIN_TYPE: []
+  VAL_TYPE: []
   DATAROOT: 'assets/bucket'
   DATA_TYPE: 'Bucket'
   SETS:
