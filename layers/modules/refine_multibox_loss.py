@@ -145,12 +145,8 @@ class RefineMultiBoxLoss(nn.Module):
             _, loss_idx = loss_c.sort(1, descending=True)
             _, idx_rank = loss_idx.sort(1)
             num_pos = pos.long().sum(1, keepdim=True)
-            if num_pos.data.sum() > 0:
-                num_neg = torch.clamp(
+            num_neg = torch.clamp(
                 self.negpos_ratio * num_pos, max=pos.size(1) - 1)
-            else:
-                num_neg = torch.clamp(
-                self.negpos_ratio * 30, max=pos.size(1) - 1)
             neg = idx_rank < num_neg.expand_as(idx_rank)
 
             # Confidence Loss Including Positive and Negative Examples
@@ -161,8 +157,29 @@ class RefineMultiBoxLoss(nn.Module):
                 -1, self.num_classes)
 
             targets_weighted = conf_t[(pos + neg).gt(0)]
-            loss_c = F.cross_entropy(
-                conf_p, targets_weighted, size_average=False)
+            try:
+                loss_c = F.cross_entropy(
+                    conf_p, targets_weighted, size_average=False)
+            except:
+                print('targets')
+                print(targets)
+                print('loc_data')
+                print(loc_data)
+                print('conf_t')
+                print(conf_t)
+                print('neg')
+                print(neg)
+                print('conf_p')
+                print(conf_p)
+                print('targets_weighted')
+                print(targets_weighted)
+                print('neg')
+                print(neg)
+                print('num_neg')
+                print(num_neg)
+                print('num_pos')
+                print(num_pos)
+                raise
         else:
             loss_c = F.cross_entropy(conf_p, conf_t, size_average=False)
 

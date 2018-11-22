@@ -327,23 +327,23 @@ class BucketDataset(Dataset):
         all_boxes[class][image] = [] or np.array of shape #dets x 5
         """
         self._write_bucket_results_file(all_boxes)
-        self._do_python_eval(output_dir)
+        # self._do_python_eval(output_dir)
 
     def _write_bucket_results_file(self, all_boxes):
         for cls_ind, cls in enumerate(self.label_manager.region_keyword_list):
             print('Writing {} Bucket results file'.format(cls))
-            filename = self._get_bucket_results_file_template().format(cls)
+            filename = self._get_bucket_results_file_template().format(cls.replace('/', '_'))
             # print(filename)
             with open(filename, 'wt') as f:
-                for im_ind, index in enumerate(self.ids):
-                    index = index[1]
+                for im_ind, row in enumerate(self.target_df.itertuples()):
+                    index = row.id
                     dets = all_boxes[cls_ind][im_ind]
                     if dets == []:
                         continue
                     for k in range(dets.shape[0]):
                         f.write(
                             '{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.format(
-                                index, dets[k, -1], dets[k, 0] + 1,
+                                str(index), dets[k, -1], dets[k, 0] + 1,
                                 dets[k, 1] + 1, dets[k, 2] + 1,
                                 dets[k, 3] + 1))
 
@@ -438,7 +438,7 @@ class BucketDataset(Dataset):
 
         if self.name != 'test':
             if self.transform is not None:
-                img, target = self.transform(img, areas)
+                img, areas = self.transform(img, areas)
         else:
             if self.transform is not None:
                 img = self.transform(img)

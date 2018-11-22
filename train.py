@@ -2,7 +2,7 @@ import os
 
 from data.bucket import BucketDataset
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -35,7 +35,7 @@ def arg_parse():
         help='Config file for training (and optionally testing)')
     parser.add_argument(
         '--num_workers',
-        default=8,
+        default=10,
         type=int,
         help='Number of workers used in dataloading')
     parser.add_argument('--ngpu', default=2, type=int, help='gpus')
@@ -337,4 +337,7 @@ def main():
 
 
 if __name__ == '__main__':
+    import resource
+    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))
     main()
