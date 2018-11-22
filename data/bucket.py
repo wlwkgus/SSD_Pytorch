@@ -10,6 +10,7 @@ import pandas as pd
 import json
 import torch
 
+from data.bucket_eval import bucket_eval
 from data.voc_eval import voc_eval
 
 
@@ -327,7 +328,7 @@ class BucketDataset(Dataset):
         all_boxes[class][image] = [] or np.array of shape #dets x 5
         """
         self._write_bucket_results_file(all_boxes)
-        # self._do_python_eval(output_dir)
+        self._do_python_eval(output_dir)
 
     def _write_bucket_results_file(self, all_boxes):
         for cls_ind, cls in enumerate(self.label_manager.region_keyword_list):
@@ -362,12 +363,10 @@ class BucketDataset(Dataset):
             os.mkdir(output_dir)
         for i, cls in enumerate(self.label_manager.region_keyword_list):
             filename = self._get_bucket_results_file_template().format(cls)
-            rec, prec, ap = voc_eval(
+            rec, prec, ap = bucket_eval(
                 filename,
-                annopath,
-                imagesetfile,
+                self,
                 cls,
-                cachedir,
                 ovthresh=0.5,
                 use_07_metric=use_07_metric)
             aps += [ap]
