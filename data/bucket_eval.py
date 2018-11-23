@@ -84,7 +84,7 @@ def generate_rec(areas, dataset):
     for area in areas:
         obj = dict()
         obj['difficult'] = 0
-        obj['name'] = dataset.region_keyword_list[int(area[4])]
+        obj['name'] = dataset.label_manager.region_keyword_list[int(area[4])]
         obj['bbox'] = [
             int(area[0]),
             int(area[1]),
@@ -124,10 +124,11 @@ def bucket_eval(detpath,
     # cachedir caches the annotations in a pickle file
 
     class_recs = dict()
+    npos = 0
 
-    for i, (_, areas, info) in dataset:
+    for i, (_, areas, info) in enumerate(dataset):
         row = dataset.target_df.iloc[i]
-        rec = generate_rec(areas, info)
+        rec = generate_rec(areas, dataset)
         R = [obj for obj in rec if obj['name'] == classname]
         bbox = np.array([x['bbox'] for x in R])
         difficult = np.array([x['difficult'] for x in R]).astype(np.bool)
@@ -140,7 +141,7 @@ def bucket_eval(detpath,
         }
 
     # read dets
-    detfile = detpath.format(classname)
+    detfile = detpath.format(classname.replace('/', '_'))
     with open(detfile, 'r') as f:
         lines = f.readlines()
 
@@ -151,7 +152,11 @@ def bucket_eval(detpath,
     # sort by confidence
     sorted_ind = np.argsort(-confidence)
     sorted_scores = np.sort(-confidence)
-    BB = BB[sorted_ind, :]
+    try:
+        BB = BB[sorted_ind, :]
+    except IndexError:
+        return None, None, None
+        
     image_ids = [image_ids[x] for x in sorted_ind]
 
     # go down dets and mark TPs and FPs
@@ -159,7 +164,7 @@ def bucket_eval(detpath,
     tp = np.zeros(nd)
     fp = np.zeros(nd)
     for d in range(nd):
-        R = class_recs[image_ids[d]]
+        R = class_recs[int(image_ids[d])]
         bb = BB[d, :].astype(float)
         ovmax = -np.inf
         BBGT = R['bbox'].astype(float)
@@ -209,7 +214,7 @@ def bucket_eval(detpath,
         os.makedirs(plt_save_path)
     plt.plot(rec, prec, 'r')
     pr_curl = os.path.join(
-        plt_save_path, '{}_{}_{}pr.jpg'.format(classname, str(final_prec),
+        plt_save_path, '{}_{}_{}pr.jpg'.format(classname.replace('/', '_'), str(final_prec),
                                                str(final_rec)))
     plt.savefig(pr_curl)
     plt.close()

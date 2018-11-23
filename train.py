@@ -296,7 +296,7 @@ def main():
     ValTransform = BaseTransform(size_cfg.IMG_WH, bgr_means, (2, 0, 1))
 
     if cfg.DATASETS.DATA_TYPE == 'Bucket':
-        val_dataset = trainvalDataset(dataroot, valSet, ValTransform)
+        val_dataset = trainvalDataset(dataroot, 'validation', ValTransform)
     else:
         val_dataset = trainvalDataset(dataroot, valSet, ValTransform)
     val_loader = data.DataLoader(
@@ -308,7 +308,7 @@ def main():
 
     for epoch in range(start_epoch + 1, end_epoch + 1):
         if cfg.DATASETS.DATA_TYPE == 'Bucket':
-            train_dataset = trainvalDataset(dataroot, trainSet, TrainTransform)
+            train_dataset = trainvalDataset(dataroot, 'train', TrainTransform)
         else:
             train_dataset = trainvalDataset(dataroot, trainSet, TrainTransform, dataset_name)
         epoch_size = len(train_dataset)
@@ -322,7 +322,7 @@ def main():
               gamma, end_epoch, cfg)
         if (epoch % 10 == 0) or (epoch % 5 == 0 and epoch >= 200):
             save_checkpoint(net, epoch, size, optimizer)
-        if (epoch >= 50 and epoch % 10 == 0):
+        if (epoch >= 50 and epoch % 100 == 0):
             eval_net(
                 val_dataset,
                 val_loader,

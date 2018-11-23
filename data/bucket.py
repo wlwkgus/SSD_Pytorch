@@ -362,17 +362,19 @@ class BucketDataset(Dataset):
         if output_dir is not None and not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         for i, cls in enumerate(self.label_manager.region_keyword_list):
-            filename = self._get_bucket_results_file_template().format(cls)
+            filename = self._get_bucket_results_file_template().format(cls.replace('/', '_'))
             rec, prec, ap = bucket_eval(
                 filename,
                 self,
                 cls,
                 ovthresh=0.5,
                 use_07_metric=use_07_metric)
+            if rec is None:
+                continue
             aps += [ap]
             print('AP for {} = {:.4f}'.format(cls, ap))
             if output_dir is not None:
-                with open(os.path.join(output_dir, cls + '_pr.pkl'),
+                with open(os.path.join(output_dir, cls.replace('/', '_') + '_pr.pkl'),
                           'wb') as f:
                     pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
         print('Mean AP = {:.4f}'.format(np.mean(aps)))
