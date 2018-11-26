@@ -96,7 +96,7 @@ def generate_rec(areas, dataset):
 
 
 def bucket_eval(detpath,
-                dataset,
+                data_list,
                 classname,
                 ovthresh=0.5,
                 use_07_metric=False):
@@ -126,15 +126,16 @@ def bucket_eval(detpath,
     class_recs = dict()
     npos = 0
 
-    for i, (_, areas, info) in enumerate(dataset):
-        row = dataset.target_df.iloc[i]
-        rec = generate_rec(areas, dataset)
+    for row in data_list:
+        areas = row['areas']
+        info = row['info']
+        rec = generate_rec(areas, info)
         R = [obj for obj in rec if obj['name'] == classname]
         bbox = np.array([x['bbox'] for x in R])
         difficult = np.array([x['difficult'] for x in R]).astype(np.bool)
         det = [False] * len(R)
         npos = npos + sum(~difficult)
-        class_recs[row.id] = {
+        class_recs[row['id']] = {
             'bbox': bbox,
             'difficult': difficult,
             'det': det

@@ -8,6 +8,7 @@ from torchvision import transforms
 import cv2
 import pandas as pd
 import json
+from tqdm import tqdm
 import torch
 
 from data.bucket_eval import bucket_eval
@@ -357,6 +358,17 @@ class BucketDataset(Dataset):
         cachedir = os.path.join(self.root_dir, 'annotations_cache')
         aps = []
         # The PASCAL VOC metric changed in 2010
+
+        print("Generating eval dataset...")
+        data_list = list()
+        for i, (_, areas, info) in tqdm(self):
+            ref_row = self.target_df.iloc[i]
+            row = dict()
+            row['id'] = ref_row.id
+            row['areas'] = areas
+            row['info'] = info
+            data_list.append(row)
+
         use_07_metric = True
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
         if output_dir is not None and not os.path.isdir(output_dir):
@@ -365,7 +377,7 @@ class BucketDataset(Dataset):
             filename = self._get_bucket_results_file_template().format(cls.replace('/', '_'))
             rec, prec, ap = bucket_eval(
                 filename,
-                self,
+                data_list,
                 cls,
                 ovthresh=0.5,
                 use_07_metric=use_07_metric)
