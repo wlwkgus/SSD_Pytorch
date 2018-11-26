@@ -79,12 +79,12 @@ def voc_ap(rec, prec, use_07_metric=False):
     return ap
 
 
-def generate_rec(areas, dataset):
+def generate_rec(areas, label_manager):
     objs = list()
     for area in areas:
         obj = dict()
         obj['difficult'] = 0
-        obj['name'] = dataset.label_manager.region_keyword_list[int(area[4])]
+        obj['name'] = label_manager.region_keyword_list[int(area[4])]
         obj['bbox'] = [
             int(area[0]),
             int(area[1]),
@@ -97,6 +97,7 @@ def generate_rec(areas, dataset):
 
 def bucket_eval(detpath,
                 data_list,
+                label_manager,
                 classname,
                 ovthresh=0.5,
                 use_07_metric=False):
@@ -129,7 +130,7 @@ def bucket_eval(detpath,
     for row in data_list:
         areas = row['areas']
         info = row['info']
-        rec = generate_rec(areas, info)
+        rec = generate_rec(areas, label_manager)
         R = [obj for obj in rec if obj['name'] == classname]
         bbox = np.array([x['bbox'] for x in R])
         difficult = np.array([x['difficult'] for x in R]).astype(np.bool)

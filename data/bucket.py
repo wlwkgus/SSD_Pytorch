@@ -361,7 +361,7 @@ class BucketDataset(Dataset):
 
         print("Generating eval dataset...")
         data_list = list()
-        for i, (_, areas, info) in tqdm(self):
+        for i, (_, areas, info) in enumerate(tqdm(self)):
             ref_row = self.target_df.iloc[i]
             row = dict()
             row['id'] = ref_row.id
@@ -378,6 +378,7 @@ class BucketDataset(Dataset):
             rec, prec, ap = bucket_eval(
                 filename,
                 data_list,
+                self.label_manager,
                 cls,
                 ovthresh=0.5,
                 use_07_metric=use_07_metric)
