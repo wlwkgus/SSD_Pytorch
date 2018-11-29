@@ -172,7 +172,10 @@ def main():
     net.load_state_dict(new_state_dict)
     detector = Detect(cfg)
     ValTransform = BaseTransform(size_cfg.IMG_WH, bgr_means, (2, 0, 1))
-    val_dataset = trainvalDataset(dataroot, valSet, ValTransform, "val")
+    if cfg.DATASETS.DATA_TYPE == 'Bucket':
+        val_dataset = trainvalDataset(dataroot, 'validation', ValTransform)
+    else:
+        val_dataset = trainvalDataset(dataroot, valSet, ValTransform, "val")
     val_loader = data.DataLoader(
         val_dataset,
         batch_size,
