@@ -309,6 +309,7 @@ class BucketDataset(Dataset):
         self.transform = transform
         self.label_manager = LabelManager()
         self.df = pd.read_csv(os.path.join(self.root_dir, 'labeled_data_belongs_20181114.csv'))
+        self.df.columns = ['Unnamed: 0', 'id', 'image_url', 'keywords', 'region_keywords', 'belongs']
         self.df = self.df[self.df.belongs != 7]
         self.train_df = self.df.sample(frac=0.80, random_state=253)
         self.rest_df = self.df[~self.df.id.isin(self.train_df.id)]
