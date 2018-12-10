@@ -407,14 +407,14 @@ class BucketDataset(Dataset):
         print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
         print('-- Thanks, The Management')
         print('--------------------------------------------------------------')
-        
+
         sorted_ap_dict_items = sorted(ap_dict.items(), key=operator.itemgetter(1), reverse=True)
         print("[ Top 30 ]")
 
         for tup in sorted_ap_dict_items[:30]:
             print("{} : {}".format(tup[0], tup[1]))
 
-        top_array = np.asarray([tup[1] for tup in sorted_ap_dict_items])
+        top_array = np.asarray([tup[1] for tup in sorted_ap_dict_items[:30]])
         print(">>> Top 30 mean AP : {}".format(top_array.mean()))
         print(">>> Top 30 stddev AP : {}".format(top_array.std()))
 
@@ -424,7 +424,7 @@ class BucketDataset(Dataset):
         for tup in sorted_ap_dict_items[:30]:
             print("{} : {}".format(tup[0], tup[1]))
 
-        top_array = np.asarray([tup[1] for tup in sorted_ap_dict_items])
+        top_array = np.asarray([tup[1] for tup in sorted_ap_dict_items[:30]])
         print(">>> Worst 30 mean AP : {}".format(top_array.mean()))
         print(">>> Worst 30 stddev AP : {}".format(top_array.std()))
 
