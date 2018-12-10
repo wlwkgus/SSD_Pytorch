@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import cv2
+import operator
 import pandas as pd
 import json
 from tqdm import tqdm
@@ -373,6 +374,7 @@ class BucketDataset(Dataset):
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
         if output_dir is not None and not os.path.isdir(output_dir):
             os.mkdir(output_dir)
+        ap_dict = dict()
         for i, cls in enumerate(self.label_manager.region_keyword_list):
             filename = self._get_bucket_results_file_template().format(cls.replace('/', '_'))
             rec, prec, ap = bucket_eval(
@@ -386,6 +388,7 @@ class BucketDataset(Dataset):
                 continue
             aps += [ap]
             print('AP for {} = {:.4f}'.format(cls, ap))
+            ap_dict[cls] = ap
             if output_dir is not None:
                 with open(os.path.join(output_dir, cls.replace('/', '_') + '_pr.pkl'),
                           'wb') as f:
@@ -404,6 +407,26 @@ class BucketDataset(Dataset):
         print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
         print('-- Thanks, The Management')
         print('--------------------------------------------------------------')
+        
+        sorted_ap_dict_items = sorted(ap_dict.items(), key=operator.itemgetter(1), reverse=True)
+        print("[ Top 30 ]")
+
+        for tup in sorted_ap_dict_items[:30]:
+            print("{} : {}".format(tup[0], tup[1]))
+
+        top_array = np.asarray([tup[1] for tup in sorted_ap_dict_items])
+        print(">>> Top 30 mean AP : {}".format(top_array.mean()))
+        print(">>> Top 30 stddev AP : {}".format(top_array.std()))
+
+        sorted_ap_dict_items = sorted(ap_dict.items(), key=operator.itemgetter(1))
+        print("[ Worst 30 ]")
+
+        for tup in sorted_ap_dict_items[:30]:
+            print("{} : {}".format(tup[0], tup[1]))
+
+        top_array = np.asarray([tup[1] for tup in sorted_ap_dict_items])
+        print(">>> Worst 30 mean AP : {}".format(top_array.mean()))
+        print(">>> Worst 30 stddev AP : {}".format(top_array.std()))
 
     def _get_bucket_results_file_template(self):
         filename = 'comp3_det_test' + '_{:s}.txt'
