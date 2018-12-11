@@ -1,8 +1,8 @@
-from data.bucket import LabelManager
+from utils import label
 
 
 class StoreHierarchicalManager(object):
-    LABEL = LabelManager.LABEL['area']['store']
+    LABEL = label.LABEL['area']['store']
 
     def __init__(self):
         self.all_hash_key = self.get_all_hash_key()
