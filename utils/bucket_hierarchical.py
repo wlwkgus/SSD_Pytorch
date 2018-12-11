@@ -101,7 +101,7 @@ class StoreHierarchicalManager(object):
 
 
 class RestHierarchicalManager(object):
-    LABEL = LabelManager.LABEL['area']
+    LABEL = label.LABEL['area']
     LABEL.pop('store')
 
     def __init__(self):
