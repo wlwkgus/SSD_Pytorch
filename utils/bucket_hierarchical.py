@@ -2,7 +2,7 @@ from data.bucket import LabelManager
 
 
 class HierarchicalLabelManager(object):
-    LABEL = LabelManager.LABEL
+    LABEL = LabelManager.LABEL['area']['store']
 
     def __init__(self):
         self.all_hash_key = self.get_all_hash_key()
