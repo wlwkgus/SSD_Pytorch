@@ -14,6 +14,7 @@ import torch
 
 from data.bucket_eval import bucket_eval
 from data.voc_eval import voc_eval
+from utils.bucket_hierarchical import StoreHierarchicalManager
 
 
 class LabelManager(object):
@@ -308,6 +309,7 @@ class BucketDataset(Dataset):
         self.name = name
         self.transform = transform
         self.label_manager = LabelManager()
+        self.hierarchical_manager = StoreHierarchicalManager()
         self.df = pd.read_csv(os.path.join(self.root_dir, 'labeled_data_belongs_20181114.csv'))
         self.df = self.df[self.df.belongs != 7]
         self.train_df = self.df.sample(frac=0.80, random_state=253)
@@ -480,7 +482,7 @@ class BucketDataset(Dataset):
         else:
             if self.transform is not None:
                 img = self.transform(img)
-        return img, areas, info
+        return img, areas, info, three_depth_label
 
 
 def detection_collate(batch):
