@@ -92,6 +92,8 @@ class StoreHierarchicalManager(object):
 
     def get_three_depth_index_by_key(self, key):
         three_depth_list = self.get_hash_key(key)
+        if three_depth_list is None:
+            return None
 
         return [
             self.get_output_index(three_depth_list[0], self.one_depth),
@@ -177,11 +179,13 @@ class RestHierarchicalManager(object):
                 partial_cumsum += self.get_output_length(item)
 
     def get_two_depth_index_by_key(self, key):
-        three_depth_list = self.get_hash_key(key)
+        two_depth_list = self.get_hash_key(key)
+        if two_depth_list is None:
+            return None
 
         return [
-            self.get_output_index(three_depth_list[0], self.one_depth),
-            self.get_output_index(three_depth_list[1], self.two_depth),
+            self.get_output_index(two_depth_list[0], self.one_depth),
+            self.get_output_index(two_depth_list[1], self.two_depth),
         ]
 
 
