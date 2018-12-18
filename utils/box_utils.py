@@ -213,13 +213,18 @@ def refine_match(threshold,
                  conf_t,
                  idx,
                  arm_loc_data,
-                 use_weight=False):
+                 use_weight=False,
+                 assign_loc=True,
+                 assign_background_value=0,
+                 is_chunk_idx=True,
+                 chunk_idxes=None,
+                 conf_chunk_idx_t=None):
     """Match each prior box with the ground truth box of the highest jaccard
     overlap, encode the bounding boxes, then return the matched indices
     corresponding to both confidence and location preds.
     Args:
         threshold: (float) The overlap threshold used when mathing boxes.
-        truths: (tensor) Ground truth boxes, Shape: [num_obj, num_priors].
+        truths: (tensor) Ground truth boxes, Shape: [num_obj, 4].
         priors: (tensor) Prior boxes from priorbox layers, Shape: [n_priors,4].
         variances: (tensor) Variances corresponding to each prior coord,
             Shape: [num_priors, 4].
@@ -252,11 +257,17 @@ def refine_match(threshold,
         best_truth_idx[best_prior_idx[j]] = j
     matches = truths[best_truth_idx]  # Shape: [num_priors,4]
     conf = labels[best_truth_idx]  # Shape: [num_priors]
-    conf[best_truth_overlap < threshold] = 0  # label as background
+    if is_chunk_idx:
+        conf_chunk_idx = chunk_idxes[best_truth_idx]
+    # conf : labels are assigned for each priors.
+    conf[best_truth_overlap < threshold] = assign_background_value  # label as background
     loc = encode(matches, center_size(decoded_boxes), variances)
     # loc = encode(matches, priors, variances)
-    loc_t[idx] = loc  # [num_priors,4] encoded offsets to learn
+    if assign_loc:
+        loc_t[idx] = loc  # [num_priors,4] encoded offsets to learn
     conf_t[idx] = conf  # [num_priors] top class label for each prior
+    if is_chunk_idx:
+        conf_chunk_idx_t[idx] = conf_chunk_idx
     if use_weight:
         over_copy = best_truth_overlap.cpu().numpy().copy()
         over_copy.astype(np.float32)

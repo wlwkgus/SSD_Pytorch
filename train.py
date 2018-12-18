@@ -23,6 +23,7 @@ import sys
 import pickle
 import datetime
 from models.model_builder import SSD
+from data.bucket import detection_collate as bucket_detection_collate
 import yaml
 
 
@@ -90,7 +91,7 @@ def train(train_loader, net, criterion, optimizer, epoch, epoch_step, gamma,
     net.train()
     begin = time.time()
     epoch_size = len(train_loader)
-    for iteration, (imgs, targets, _) in enumerate(train_loader):
+    for iteration, (imgs, targets, _, batch_depths) in enumerate(train_loader):
         t0 = time.time()
         lr = adjust_learning_rate(optimizer, epoch, epoch_step, gamma,
                                   epoch_size, iteration)
@@ -98,6 +99,7 @@ def train(train_loader, net, criterion, optimizer, epoch, epoch_step, gamma,
         imgs.requires_grad_()
         with torch.no_grad():
             targets = [anno.cuda() for anno in targets]
+            batch_depths = [depths.cuda() for depths in batch_depths]
         output = net(imgs)
         optimizer.zero_grad()
         if not cfg.MODEL.REFINE:
@@ -284,6 +286,7 @@ def main():
     if cfg.MODEL.REFINE:
         detector = Detect(cfg)
         arm_criterion = RefineMultiBoxLoss(cfg, 2)
+        # TODO : FIX HERE! replace to proper classes input.
         odm_criterion = RefineMultiBoxLoss(cfg, cfg.MODEL.NUM_CLASSES)
         criterion.append(arm_criterion)
         criterion.append(odm_criterion)
@@ -297,27 +300,39 @@ def main():
 
     if cfg.DATASETS.DATA_TYPE == 'Bucket':
         val_dataset = trainvalDataset(dataroot, 'validation', ValTransform)
+        val_loader = data.DataLoader(
+            val_dataset,
+            batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            collate_fn=bucket_detection_collate())
     else:
         val_dataset = trainvalDataset(dataroot, valSet, ValTransform)
-    val_loader = data.DataLoader(
-        val_dataset,
-        batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        collate_fn=detection_collate)
+        val_loader = data.DataLoader(
+            val_dataset,
+            batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            collate_fn=detection_collate)
 
     for epoch in range(start_epoch + 1, end_epoch + 1):
         if cfg.DATASETS.DATA_TYPE == 'Bucket':
             train_dataset = trainvalDataset(dataroot, 'train', TrainTransform)
+            train_loader = data.DataLoader(
+                train_dataset,
+                batch_size,
+                shuffle=True,
+                num_workers=args.num_workers,
+                collate_fn=bucket_detection_collate)
         else:
             train_dataset = trainvalDataset(dataroot, trainSet, TrainTransform, dataset_name)
+            train_loader = data.DataLoader(
+                train_dataset,
+                batch_size,
+                shuffle=True,
+                num_workers=args.num_workers,
+                collate_fn=detection_collate)
         epoch_size = len(train_dataset)
-        train_loader = data.DataLoader(
-            train_dataset,
-            batch_size,
-            shuffle=True,
-            num_workers=args.num_workers,
-            collate_fn=detection_collate)
         train(train_loader, net, criterion, optimizer, epoch, epoch_step,
               gamma, end_epoch, cfg)
         if (epoch % 10 == 0) or (epoch % 5 == 0 and epoch >= 200):

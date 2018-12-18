@@ -1,3 +1,6 @@
+import json
+import numpy as np
+
 LABEL = {
         "area": {
             "structure": ["계단", "창문/샷시(외창)", "유리파티션", "간접조명(시사시조명)"],
@@ -241,3 +244,47 @@ LABEL = {
             "manner": ["자연광", "인공조명", "흰색조명", "노란조명", "간접조명", "외부전망", "밝음", "어두움", "피규어"]
         }
     }
+
+
+class LabelManager(object):
+    LABEL = LABEL
+
+    def get_leaf_values(self, obj):
+        if type(obj) == list:
+            return obj
+        ret = list()
+        for key in obj.keys():
+            ret += self.get_leaf_values(obj[key])
+        return ret
+
+    def __init__(self):
+        self.region_keyword_list = self.LABEL['area']['structure'] + self.LABEL['area']['material'] + \
+                                   self.LABEL['area']['pattern'] + self.get_leaf_values(self.LABEL['area']['store'])
+
+    #         print(self.region_keyword_list)
+
+    def region_keyword_index_to_category(self, index):
+        raise NotImplemented
+
+    def generate_label(self, row):
+        region_keywords = json.loads(row.region_keywords)
+        keywords = json.loads(row.keywords)
+        toggle_dict = dict()
+        region_dict = dict()
+        region_dict['cnt'] = len(region_keywords)
+        processed_region_keywords = list()
+        for region in region_keywords:
+            region['label'] = self.region_keyword_list.index(region['keyword'])
+            processed_region_keywords.append(
+                region
+            )
+        region_dict['areas'] = processed_region_keywords
+        for toggle, item_list in self.LABEL['toggle'].items():
+            toggle_list = list()
+            for item in item_list:
+                if item in keywords:
+                    toggle_list.append(1)
+                else:
+                    toggle_list.append(0)
+            toggle_dict[toggle] = np.asarray(toggle_list)
+        return region_dict, toggle_dict

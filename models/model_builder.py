@@ -73,7 +73,9 @@ class SSD(nn.Module):
             size_cfg = cfg.SMALL
         else:
             size_cfg = cfg.BIG
+        # TODO : FIX HERE! proper num classes here
         self.num_classes = cfg.MODEL.NUM_CLASSES
+        self.total_output_count = None
         self.prior_layer = PriorLayer(cfg)
         self.priorbox = PriorBox(cfg)
         self.priors = self.priorbox.forward()

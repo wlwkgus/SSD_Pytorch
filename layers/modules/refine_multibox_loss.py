@@ -8,6 +8,8 @@ import numpy as np
 from torch.autograd import Variable
 from utils.box_utils import match, log_sum_exp, refine_match
 from layers.modules import WeightSoftmaxLoss, WeightSmoothL1Loss
+from utils.depth_manager import DepthManager
+
 GPU = False
 if torch.cuda.is_available():
     GPU = True
@@ -37,7 +39,7 @@ class RefineMultiBoxLoss(nn.Module):
         See: https://arxiv.org/pdf/1512.02325.pdf for more details.
     """
 
-    def __init__(self, cfg, num_classes):
+    def __init__(self, cfg, num_classes, hierarchical_num_classes=None):
         super(RefineMultiBoxLoss, self).__init__()
         self.cfg = cfg
         self.size = cfg.MODEL.SIZE
@@ -58,6 +60,17 @@ class RefineMultiBoxLoss(nn.Module):
                     self.num_classes, gamma=2, size_average=False)
             else:
                 self.focaloss = FocalLossSigmoid()
+        self.hierarchical_num_classes = None
+        if hierarchical_num_classes is not None:
+            if type(hierarchical_num_classes) == list:
+                numsum = 0
+                for num in hierarchical_num_classes:
+                    numsum += num
+                if numsum != num_classes:
+                    raise Exception("numsum should be same with num classes!")
+                self.hierarchical_num_classes = hierarchical_num_classes
+            else:
+                raise Exception("hierarchical num classes shuold be a type of list.")
 
     def forward(self,
                 predictions,
@@ -87,35 +100,94 @@ class RefineMultiBoxLoss(nn.Module):
         num_classes = self.num_classes
 
         # match priors (default boxes) and ground truth boxes
-        loc_t = torch.Tensor(num, num_priors, 4)
-        conf_t = torch.LongTensor(num, num_priors)
-        defaults = priors.data
-        for idx in range(num):
-            truths = targets[idx][:, :-1].data
-            labels = targets[idx][:, -1].data
-            if self.num_classes == 2:
-                labels = labels > 0
-            if use_arm:
-                bbox_weight = refine_match(
-                    self.threshold,
-                    truths,
-                    defaults,
-                    self.variance,
-                    labels,
-                    loc_t,
-                    conf_t,
-                    idx,
-                    arm_loc_data[idx].data,
-                    use_weight=False)
-            else:
-                match(self.threshold, truths, defaults, self.variance, labels,
-                      loc_t, conf_t, idx)
+        if self.hierarchical_num_classes is None:
+            loc_t = torch.Tensor(num, num_priors, 4)
+            conf_t = torch.LongTensor(num, num_priors)
+            defaults = priors.data
+            for idx in range(num):
+                truths = targets[idx][:, :-1].data
+                labels = targets[idx][:, -1].data
+                if self.num_classes == 2:
+                    labels = labels > 0
+                if use_arm:
+                    # TODO : 분기점 여기서! hierarchy 갯수만큼 conf_t를 만들어야 함.
+                    # TODO : 주어진 라벨 값을 토대로 로스 값에 반영하기.
+                    # TODO : Should Read Labeling Code here
+                    bbox_weight = refine_match(
+                        self.threshold,
+                        truths,
+                        defaults,
+                        self.variance,
+                        labels,
+                        loc_t,
+                        conf_t,
+                        idx,
+                        arm_loc_data[idx].data,
+                        use_weight=False)
+                else:
+                    match(self.threshold, truths, defaults, self.variance, labels,
+                          loc_t, conf_t, idx)
 
-        loc_t = loc_t.cuda()
-        conf_t = conf_t.cuda()
-        # wrap targets
-        loc_t = Variable(loc_t, requires_grad=False)
-        conf_t = Variable(conf_t, requires_grad=False)
+            loc_t = loc_t.cuda()
+            conf_t = conf_t.cuda()
+            # wrap targets
+            loc_t = Variable(loc_t, requires_grad=False)
+            conf_t = Variable(conf_t, requires_grad=False)
+        else:
+            conf_ts = list()
+            conf_chunk_idx_ts = list()
+            # TODO : manipulate each conf_t based on depth.
+            for i in range(int((targets.size(2) - 5) / 2)):
+                # Filter -1 values in target info.
+                conf_t = torch.LongTensor(num, num_priors)
+                conf_chunk_idx_t = torch.LongTensor(num, num_priors)
+                conf_ts.append(
+                    conf_t
+                )
+                conf_chunk_idx_ts.append(
+                    conf_chunk_idx_t
+                )
+            loc_t = torch.Tensor(num, num_priors, 4)
+            defaults = priors.data
+
+            if use_arm:
+                for idx in range(num):
+                    truths = targets[idx][:, :4].data
+                    # TODO : 여기 옵션 조정하기!!
+                    depth_labels = targets[idx][:, [5, 7, 9, 10]].data
+                    all_chunk_idxes = targets[idx][:, [6, 8, 10, 12]].data
+                    for i in range(depth_labels.size(1)):
+                        labels = depth_labels[:, i]
+                        labels = labels[labels[:, 0] >= 0, :]
+                        chunk_idxes = all_chunk_idxes[:, i]
+                        chunk_idxes = chunk_idxes[chunk_idxes[:, 0] >= 0, :]
+                        bbox_weight = refine_match(
+                            self.threshold,
+                            truths,
+                            defaults,
+                            self.variance,
+                            labels,  # 0은 백그라운드로 처리해버림.
+                            loc_t,
+                            conf_ts[i],
+                            idx,
+                            arm_loc_data[idx].data,
+                            assign_loc=i < 1 and idx < 1,
+                            assign_background_value=0 if i == 0 else -1,
+                            use_weight=False,
+                            is_chunk_idx=True,
+                            chunk_idxes=chunk_idxes,
+                            conf_chunk_idx_t=conf_chunk_idx_ts[i],
+                        )
+
+                for i in range(len(conf_ts)):
+                    conf_ts[i] = conf_ts[i].cuda()
+                loc_t = loc_t.cuda()
+                # wrap targets
+                for i in range(len(conf_ts)):
+                    conf_ts[i] = Variable(conf_ts[i], requires_grad=False)
+                loc_t = Variable(loc_t, requires_grad=False)
+            else:
+                raise Exception("hierarchical & !use_arm is not supported!")
 
         if use_arm and filter_object:
             P = F.softmax(arm_conf_data, 2)
@@ -135,51 +207,114 @@ class RefineMultiBoxLoss(nn.Module):
         if self.OHEM:
             # Compute max conf across batch for hard negative mining
             batch_conf = conf_data.view(-1, self.num_classes)
+            if self.hierarchical_num_classes is None:
+                loss_c = log_sum_exp(batch_conf) - batch_conf.gather(
+                    1, conf_t.view(-1, 1))
 
-            loss_c = log_sum_exp(batch_conf) - batch_conf.gather(
-                1, conf_t.view(-1, 1))
+                # Hard Negative Mining
+                # TODO : Need to see value of conf_t.
+                loss_c[pos.view(-1, 1)] = 0  # filter out pos boxes for now
+                loss_c = loss_c.view(num, -1)
+                _, loss_idx = loss_c.sort(1, descending=True)
+                _, idx_rank = loss_idx.sort(1)
+                num_pos = pos.long().sum(1, keepdim=True)
+                num_neg = torch.clamp(
+                    self.negpos_ratio * num_pos, max=pos.size(1) - 1)
+                neg = idx_rank < num_neg.expand_as(idx_rank)
 
-            # Hard Negative Mining
-            loss_c[pos.view(-1, 1)] = 0  # filter out pos boxes for now
-            loss_c = loss_c.view(num, -1)
-            _, loss_idx = loss_c.sort(1, descending=True)
-            _, idx_rank = loss_idx.sort(1)
-            num_pos = pos.long().sum(1, keepdim=True)
-            num_neg = torch.clamp(
-                self.negpos_ratio * num_pos, max=pos.size(1) - 1)
-            neg = idx_rank < num_neg.expand_as(idx_rank)
+                # Confidence Loss Including Positive and Negative Examples
+                pos_idx = pos.unsqueeze(2).expand_as(conf_data)
+                neg_idx = neg.unsqueeze(2).expand_as(conf_data)
 
-            # Confidence Loss Including Positive and Negative Examples
-            pos_idx = pos.unsqueeze(2).expand_as(conf_data)
-            neg_idx = neg.unsqueeze(2).expand_as(conf_data)
+                conf_p = conf_data[(pos_idx + neg_idx).gt(0)].view(
+                    -1, self.num_classes)
 
-            conf_p = conf_data[(pos_idx + neg_idx).gt(0)].view(
-                -1, self.num_classes)
+                targets_weighted = conf_t[(pos + neg).gt(0)]
+                try:
+                    loss_c = F.cross_entropy(
+                        conf_p, targets_weighted, size_average=False)
+                except:
+                    print('targets')
+                    print(targets)
+                    print('loc_data')
+                    print(loc_data)
+                    print('conf_t')
+                    print(conf_t)
+                    print('neg')
+                    print(neg)
+                    print('conf_p')
+                    print(conf_p)
+                    print('targets_weighted')
+                    print(targets_weighted)
+                    print('neg')
+                    print(neg)
+                    print('num_neg')
+                    print(num_neg)
+                    print('num_pos')
+                    print(num_pos)
+                    raise
+            else:
+                batch_confs = list()
+                cumsum = 0
+                for num_classes in self.hierarchical_num_classes:
+                    batch_confs.append(
+                        batch_conf[..., cumsum:cumsum+num_classes]
+                    )
+                    cumsum += num_classes
 
-            targets_weighted = conf_t[(pos + neg).gt(0)]
-            try:
-                loss_c = F.cross_entropy(
-                    conf_p, targets_weighted, size_average=False)
-            except:
-                print('targets')
-                print(targets)
-                print('loc_data')
-                print(loc_data)
-                print('conf_t')
-                print(conf_t)
-                print('neg')
-                print(neg)
-                print('conf_p')
-                print(conf_p)
-                print('targets_weighted')
-                print(targets_weighted)
-                print('neg')
-                print(neg)
-                print('num_neg')
-                print(num_neg)
-                print('num_pos')
-                print(num_pos)
-                raise
+                # TODO : conf_t 계층에 맞춰서 모양 맞게 필터링 된 상태,
+                loss_c_sum = 0.
+
+                for i in range(4):
+                    # batch_confs : list_of_num_classes 에 따라서 쪼개진 상태
+                    # conf_ts : 4계층에 따라서 쪼개진 상태.
+                    if i > 0:
+                        loss_c = 0.
+                        conf_chunk_idx_t = conf_chunk_idx_ts[i]
+                        conf_t = conf_ts[i]
+                        for batch in range(num):
+
+                            log_sum_exp(batch_confs[batch][conf_chunk_idx_t])
+                            pass
+
+                        # TODO : here
+                        loss_c = log_sum_exp(batch_conf) - batch_conf.gather(
+                            1, conf_t.view(-1, 1))
+
+                        # Hard Negative Mining
+                        # TODO : Need to see value of conf_t.
+                        loss_c[pos.view(-1, 1)] = 0  # filter out pos boxes for now
+                        loss_c = loss_c.view(num, -1)
+                        _, loss_idx = loss_c.sort(1, descending=True)
+                        _, idx_rank = loss_idx.sort(1)
+                        num_pos = pos.long().sum(1, keepdim=True)
+                        num_neg = torch.clamp(
+                            self.negpos_ratio * num_pos, max=pos.size(1) - 1)
+                        neg = idx_rank < num_neg.expand_as(idx_rank)
+
+                        # Confidence Loss Including Positive and Negative Examples
+                        pos_idx = pos.unsqueeze(2).expand_as(conf_data)
+                        neg_idx = neg.unsqueeze(2).expand_as(conf_data)
+
+                        conf_p = conf_data[(pos_idx + neg_idx).gt(0)].view(
+                            -1, self.num_classes)
+
+                        targets_weighted = conf_t[(pos + neg).gt(0)]
+                        loss_c = F.cross_entropy(
+                            conf_p, targets_weighted, size_average=False)
+                        loss_c = loss_c_sum / len(depths)
+                    else:
+                        # TODO : fix here also
+                        loss_c = 0.
+                        conf_chunk_idx_t = conf_chunk_idx_ts[i]
+                        conf_t = conf_ts[i]
+                        conf_t = conf_t[...,]
+                        for batch in range(num):
+
+                            loss_c += F.cross_entropy(
+                                batch_confs, conf_t, size_average=False
+                            )
+
         else:
             loss_c = F.cross_entropy(conf_p, conf_t, size_average=False)
 

@@ -21,7 +21,7 @@ class StoreHierarchicalManager(object):
             two_depth[d] = list(two_depth[d])
 
         three_depth = dict()
-        for d1, d2_list in two_depth.items():
+        for d1, d2_list in sorted(two_depth.items()):
             three_depth[d1] = dict()
             for d2 in d2_list:
                 three_depth[d1][d2] = set()
@@ -29,7 +29,7 @@ class StoreHierarchicalManager(object):
         for d in self.all_hash_key:
             three_depth[d[0]][d[1]].add(d[2])
 
-        for d1, d2_list in two_depth.items():
+        for d1, d2_list in sorted(two_depth.items()):
             for d2 in d2_list:
                 three_depth[d1][d2] = list(three_depth[d1][d2])
 
@@ -47,7 +47,7 @@ class StoreHierarchicalManager(object):
                     return depth + [k]
             return None
         else:
-            for key in d.keys():
+            for key in sorted(d.keys()):
                 ret = self._get_key(k, d[key], depth + [key])
                 if ret is not None:
                     return ret
@@ -63,7 +63,7 @@ class StoreHierarchicalManager(object):
             return ret
         else:
             ret = list()
-            for key in d.keys():
+            for key in sorted(d.keys()):
                 ret += self._get_h_key(d[key], depth + [key])
             return ret
 
@@ -72,19 +72,26 @@ class StoreHierarchicalManager(object):
         if type(obj) == list:
             return len(obj)
         else:
-            for key, item in obj.items():
+            for key, item in sorted(obj.items()):
                 s += self.get_output_length(item)
             return s
 
+    def yield_partial_length(self, obj):
+        if type(obj) == list:
+            yield len(obj)
+        else:
+            for key, item in sorted(obj.items()):
+                yield from self.yield_partial_length(item)
+
     def get_output_index(self, key, obj, cumsum=0):
         if type(obj) == list:
-            for i, val in enumerate(obj):
+            for i, val in enumerate(sorted(obj)):
                 if val == key:
                     return cumsum, cumsum + i, cumsum + len(obj)
             return None
         else:
             partial_cumsum = 0
-            for k, item in obj.items():
+            for k, item in sorted(obj.items()):
                 ret = self.get_output_index(key, item, cumsum + partial_cumsum)
                 if ret is not None:
                     return ret
@@ -101,6 +108,24 @@ class StoreHierarchicalManager(object):
             self.get_output_index(three_depth_list[2], self.three_depth)
         ]
 
+    def yield_all_list_of_num_classes(self):
+        yield from self.yield_partial_length(self.one_depth)
+        yield from self.yield_partial_length(self.two_depth)
+        yield from self.yield_partial_length(self.three_depth)
+
+    def yield_partial_labels(self, obj):
+        if type(obj) == list:
+            for o in obj:
+                yield o
+        else:
+            for key, item in sorted(obj.items()):
+                yield from self.yield_partial_labels(item)
+
+    def yield_all_labels(self):
+        yield from self.yield_partial_labels(self.one_depth)
+        yield from self.yield_partial_labels(self.two_depth)
+        yield from self.yield_partial_labels(self.three_depth)
+
 
 class RestHierarchicalManager(object):
     LABEL = label.LABEL['area']
@@ -112,6 +137,8 @@ class RestHierarchicalManager(object):
         for d in self.all_hash_key:
             one_depth.add(d[0])
         one_depth = list(one_depth)
+        # TODO : Temporal Add! should refactor for general coding
+        one_depth.append('store')
 
         two_depth = dict()
         for d in one_depth:
@@ -135,7 +162,7 @@ class RestHierarchicalManager(object):
                     return depth + [k]
             return None
         else:
-            for key in d.keys():
+            for key in sorted(d.keys()):
                 ret = self._get_key(k, d[key], depth + [key])
                 if ret is not None:
                     return ret
@@ -151,28 +178,35 @@ class RestHierarchicalManager(object):
             return ret
         else:
             ret = list()
-            for key in d.keys():
+            for key in sorted(d.keys()):
                 ret += self._get_h_key(d[key], depth + [key])
             return ret
+
+    def yield_partial_length(self, obj):
+        if type(obj) == list:
+            yield len(obj)
+        else:
+            for key, item in sorted(obj.items()):
+                yield from self.yield_partial_length(item)
 
     def get_output_length(self, obj):
         s = 0
         if type(obj) == list:
             return len(obj)
         else:
-            for key, item in obj.items():
+            for key, item in sorted(obj.items()):
                 s += self.get_output_length(item)
             return s
 
     def get_output_index(self, key, obj, cumsum=0):
         if type(obj) == list:
-            for i, val in enumerate(obj):
+            for i, val in enumerate(sorted(obj)):
                 if val == key:
                     return cumsum, cumsum + i, cumsum + len(obj)
             return None
         else:
             partial_cumsum = 0
-            for k, item in obj.items():
+            for k, item in sorted(obj.items()):
                 ret = self.get_output_index(key, item, cumsum + partial_cumsum)
                 if ret is not None:
                     return ret
@@ -188,6 +222,21 @@ class RestHierarchicalManager(object):
             self.get_output_index(two_depth_list[1], self.two_depth),
         ]
 
+    def yield_all_list_of_num_classes(self):
+        yield from self.yield_partial_length(self.one_depth)
+        yield from self.yield_partial_length(self.two_depth)
+
+    def yield_partial_labels(self, obj):
+        if type(obj) == list:
+            for o in sorted(obj):
+                yield o
+        else:
+            for key, item in sorted(obj.items()):
+                yield from self.yield_partial_labels(item)
+
+    def yield_all_labels(self):
+        yield from self.yield_partial_labels(self.one_depth)
+        yield from self.yield_partial_labels(self.two_depth)
 
 if __name__ == '__main__':
     s_manager = StoreHierarchicalManager()
@@ -205,3 +254,15 @@ if __name__ == '__main__':
 
     print(r_manager.get_two_depth_index_by_key("대리석타일"))
     print(r_manager.get_two_depth_index_by_key("1단 벽선반"))
+
+    print(
+        list(
+            r_manager.yield_all_list_of_num_classes()
+        )
+    )
+
+    print(
+        list(
+            s_manager.yield_all_list_of_num_classes()
+        )
+    )

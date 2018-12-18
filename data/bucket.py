@@ -14,52 +14,8 @@ import torch
 
 from data.bucket_eval import bucket_eval
 from data.voc_eval import voc_eval
-from utils.bucket_hierarchical import StoreHierarchicalManager
-from utils import label
-
-
-class LabelManager(object):
-    LABEL = label.LABEL
-
-    def get_leaf_values(self, obj):
-        if type(obj) == list:
-            return obj
-        ret = list()
-        for key in obj.keys():
-            ret += self.get_leaf_values(obj[key])
-        return ret
-
-    def __init__(self):
-        self.region_keyword_list = self.LABEL['area']['structure'] + self.LABEL['area']['material'] + \
-                                   self.LABEL['area']['pattern'] + self.get_leaf_values(self.LABEL['area']['store'])
-
-    #         print(self.region_keyword_list)
-
-    def region_keyword_index_to_category(self, index):
-        raise NotImplemented
-
-    def generate_label(self, row):
-        region_keywords = json.loads(row.region_keywords)
-        keywords = json.loads(row.keywords)
-        toggle_dict = dict()
-        region_dict = dict()
-        region_dict['cnt'] = len(region_keywords)
-        processed_region_keywords = list()
-        for region in region_keywords:
-            region['label'] = self.region_keyword_list.index(region['keyword'])
-            processed_region_keywords.append(
-                region
-            )
-        region_dict['areas'] = processed_region_keywords
-        for toggle, item_list in self.LABEL['toggle'].items():
-            toggle_list = list()
-            for item in item_list:
-                if item in keywords:
-                    toggle_list.append(1)
-                else:
-                    toggle_list.append(0)
-            toggle_dict[toggle] = np.asarray(toggle_list)
-        return region_dict, toggle_dict
+from utils.depth_manager import DepthManager
+from utils.label import LabelManager
 
 
 class BucketDataset(Dataset):
@@ -68,7 +24,7 @@ class BucketDataset(Dataset):
         self.name = name
         self.transform = transform
         self.label_manager = LabelManager()
-        self.hierarchical_manager = StoreHierarchicalManager()
+        self.depth_manager = DepthManager()
         self.df = pd.read_csv(os.path.join(self.root_dir, 'labeled_data_belongs_20181114.csv'))
         self.df = self.df[self.df.belongs != 7]
         self.train_df = self.df.sample(frac=0.80, random_state=253)
@@ -223,17 +179,22 @@ class BucketDataset(Dataset):
             anno = np.concatenate(
                 (
                     region['coordinates'],
-                    np.zeros(1)
+                    -np.ones(9)
                 )
             )
             anno[4] = region['label']
+            depths = self.depth_manager.get_chunk_index_and_label(region['keyword'])
+            # depth : (chunk_index, label)
+            for i, depth in enumerate(depths):
+                anno[4 + 2*i + 1] = depth[1]
+                anno[4 + 2*i + 2] = depth[0]
             anno[[0, 2]] *= width / 100
             anno[[1, 3]] *= height / 100
             anno = np.floor(anno)
             areas.append(
                 anno
             )
-        areas = np.asarray(areas).reshape(-1, 5)
+        areas = np.asarray(areas).reshape(-1, 13)
 
         if self.name != 'test':
             if self.transform is not None:
@@ -241,7 +202,7 @@ class BucketDataset(Dataset):
         else:
             if self.transform is not None:
                 img = self.transform(img)
-        return img, areas, info, three_depth_label
+        return img, areas, info
 
 
 def detection_collate(batch):
