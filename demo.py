@@ -1,4 +1,7 @@
 import os
+
+from data.bucket import BucketDataset, LabelManager
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "1,0"
 import torch
 import torch.nn as nn
@@ -22,7 +25,9 @@ import pickle
 import datetime
 from models.model_builder import SSD
 import yaml
+import pandas as pd
 import cv2
+from tqdm import tqdm
 
 
 def arg_parse():
@@ -56,6 +61,15 @@ def arg_parse():
         help='Number of workers used in dataloading')
     parser.add_argument(
         '--retest', default=False, type=bool, help='test cache results')
+    parser.add_argument(
+        '--from_validation', default=False, type=bool, help='test cache results'
+    )
+    parser.add_argument(
+        '--reference_dir', default='/', type=str, help='bucket demo dir'
+    )
+    parser.add_argument(
+        '--df_dir', default='/', type=str, help='df dir'
+    )
     args = parser.parse_args()
     return args
 
@@ -120,6 +134,11 @@ def main():
         trainvalDataset = VOCDetection
         classes = VOC_CLASSES
         top_k = 200
+    elif cfg.DATASETS.DATA_TYPE == 'Bucket':
+        trainvalDataset = BucketDataset
+        classes = LabelManager().region_keyword_list
+        top_k = 200
+
     else:
         trainvalDataset = COCODetection
         classes = COCO_CLASSES
@@ -149,17 +168,41 @@ def main():
     detector = Detect(cfg)
     img_wh = cfg.TEST.INPUT_WH
     ValTransform = BaseTransform(img_wh, bgr_means, (2, 0, 1))
-    input_folder = args.images
+    dataroot = cfg.DATASETS.DATAROOT
     thresh = cfg.TEST.CONFIDENCE_THRESH
-    for item in os.listdir(input_folder)[2:3]:
-        img_path = os.path.join(input_folder, item)
-        print(img_path)
-        img = cv2.imread(img_path)
-        dets = im_detect(img, net, detector, ValTransform, thresh)
-        draw_img = draw_rects(img, dets, classes)
-        out_img_name = "output_" + item
-        save_path = os.path.join(save_folder, out_img_name)
-        cv2.imwrite(save_path, img)
+    if args.from_validation:
+        val_dataset = trainvalDataset(dataroot, 'validation', ValTransform)
+        for i, (img, _, __) in enumerate(val_dataset):
+            # img = cv2.imread(img_path)
+            dets = im_detect(img, net, detector, ValTransform, thresh)
+            draw_img = draw_rects(img, dets, classes)
+            out_img_name = "output_" + str(i) + '.jpg'
+            save_path = os.path.join(save_folder, out_img_name)
+            cv2.imwrite(save_path, img)
+    else:
+        df1 = pd.read_csv(os.path.join(args.df_dir, 'demo_15000_cards.csv'))
+        df2 = pd.read_csv(os.path.join(args.df_dir, 'demo_35000_cards.csv'))
+
+        df = pd.concat([df1, df2])
+        detect_results = list()
+        for row in tqdm(df.itertuples()):
+            img_path = os.path.join(args.reference_dir, "{}.jpg".format(row.id))
+            img = cv2.imread(img_path)
+            dets = im_detect(img, net, detector, ValTransform, thresh)
+            detect_results.append(dets)
+        with open('demo_result.pkl', 'wb') as f:
+            pickle.dump(detect_results, f)
+
+        # input_folder = args.images
+        # for item in os.listdir(input_folder)[2:3]:
+        #     img_path = os.path.join(input_folder, item)
+        #     print(img_path)
+        #     img = cv2.imread(img_path)
+        #     dets = im_detect(img, net, detector, ValTransform, thresh)
+        #     draw_img = draw_rects(img, dets, classes)
+        #     out_img_name = "output_" + item
+        #     save_path = os.path.join(save_folder, out_img_name)
+        #     cv2.imwrite(save_path, img)
 
 
 if __name__ == '__main__':
